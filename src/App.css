@@ -26,6 +26,7 @@ body {
 }
 
 .brand { display: flex; align-items: center; gap: 9px; }
+.brand-logo { width: 32px; height: 32px; object-fit: contain; }
 .brand-name { font-size: 1rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px; }
 
 /* ── Health banner ── */

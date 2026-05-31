@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
+import logoImg from "./logo.png";
 import PlanParser from "./PlanParser";
 import InsuranceForm from "./InsuranceForm";
 import ResultsPanel from "./ResultsPanel";
@@ -62,11 +63,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
-            <circle cx="14" cy="14" r="12" stroke="#0EA5E9" strokeWidth="2" />
-            <circle cx="14" cy="14" r="5" fill="#0EA5E9" opacity="0.9" />
-            <circle cx="14" cy="14" r="2" fill="white" />
-          </svg>
+          <img src={logoImg} alt="Iris Ai logo" className="brand-logo" />
           <span className="brand-name">Iris Ai</span>
         </div>
       </header>
