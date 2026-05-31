@@ -3,9 +3,10 @@ import { VisionPlan } from "./types";
 
 interface Props {
   onPlanExtracted: (plan: VisionPlan) => void;
+  aiAvailable: boolean;
 }
 
-export default function PlanParser({ onPlanExtracted }: Props) {
+export default function PlanParser({ onPlanExtracted, aiAvailable }: Props) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,16 +24,36 @@ export default function PlanParser({ onPlanExtracted }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planText: text }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Extraction failed");
+
+      // The error path may return a non-JSON page (e.g. a gateway 502),
+      // so parse defensively rather than letting res.json() throw.
+      let data: { error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        /* non-JSON response */
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error ?? `Extraction service error (${res.status}). Please try again.`);
+      }
+
       onPlanExtracted(data as VisionPlan);
       setSuccess(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      // A thrown TypeError from fetch means the network/function was unreachable.
+      setError(
+        err instanceof TypeError
+          ? "Couldn't reach the AI extraction service. You can still enter plan details manually below."
+          : msg
+      );
     } finally {
       setLoading(false);
     }
   }
+
+  const disabled = loading || !text.trim() || !aiAvailable;
 
   return (
     <div className="card paste-card">
@@ -65,8 +86,13 @@ export default function PlanParser({ onPlanExtracted }: Props) {
 
       {error && <div className="parse-error-msg">{error}</div>}
       {success && <div className="parse-success-msg">Plan extracted — fields updated below.</div>}
+      {!aiAvailable && !error && (
+        <div className="parse-unavailable-msg">
+          AI extraction is unavailable — fill in the plan fields manually below.
+        </div>
+      )}
 
-      <button className="btn-extract" onClick={handleExtract} disabled={loading || !text.trim()}>
+      <button className="btn-extract" onClick={handleExtract} disabled={disabled}>
         {loading ? (
           <>
             <span className="spinner" />

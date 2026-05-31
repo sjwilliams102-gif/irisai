@@ -28,6 +28,20 @@ body {
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand-name { font-size: 1rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px; }
 
+/* ── Health banner ── */
+.health-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #FFFBEB;
+  border-bottom: 1px solid #FDE68A;
+  color: #92400E;
+  font-size: 0.82rem;
+  padding: 9px 24px;
+}
+
+.health-banner svg { flex-shrink: 0; color: #D97706; }
+
 /* ── Main grid ── */
 .main-grid {
   display: grid;
@@ -130,6 +144,15 @@ body {
   padding: 8px 12px;
   font-size: 0.78rem;
   color: #16A34A;
+}
+
+.parse-unavailable-msg {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  color: #64748B;
 }
 
 .btn-extract {

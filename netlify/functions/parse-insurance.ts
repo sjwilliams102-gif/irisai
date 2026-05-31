@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Handler } from "@netlify/functions";
 
-const client = new Anthropic();
-
 const SYSTEM_PROMPT = `You are an expert vision insurance analyst.
 Given raw vision insurance plan text pasted by a patient, extract the coverage details.
 Return ONLY a valid JSON object — no markdown, no code fences, no explanation.
@@ -38,7 +36,17 @@ export const handler: Handler = async (event) => {
   }
 
   if (event.httpMethod !== "POST") {
-    return { statusCode: 405, headers: corsHeaders(), body: "Method not allowed" };
+    return jsonError(405, "Method not allowed.", "method_not_allowed");
+  }
+
+  // Verify the service is configured before doing anything else.
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) {
+    return jsonError(
+      503,
+      "AI extraction isn't configured on the server (ANTHROPIC_API_KEY is missing). You can still enter your plan details manually below.",
+      "missing_key"
+    );
   }
 
   let planText: string;
@@ -46,16 +54,14 @@ export const handler: Handler = async (event) => {
     const body = JSON.parse(event.body ?? "{}");
     planText = body.planText ?? "";
   } catch {
-    return { statusCode: 400, headers: corsHeaders(), body: JSON.stringify({ error: "Invalid JSON body" }) };
+    return jsonError(400, "Invalid request body.", "bad_request");
   }
 
   if (!planText || planText.trim().length < 20) {
-    return {
-      statusCode: 400,
-      headers: corsHeaders(),
-      body: JSON.stringify({ error: "Plan text is too short to parse." }),
-    };
+    return jsonError(400, "Plan text is too short to parse — paste a bit more detail.", "too_short");
   }
+
+  const client = new Anthropic({ apiKey });
 
   try {
     const message = await client.messages.create({
@@ -80,14 +86,63 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify(parsed),
     };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return {
-      statusCode: 500,
-      headers: corsHeaders(),
-      body: JSON.stringify({ error: `Parsing failed: ${msg}` }),
-    };
+    const { status, message, code } = classifyError(err);
+    return jsonError(status, message, code);
   }
 };
+
+/** Map SDK / runtime errors to clear, user-facing messages. */
+function classifyError(err: unknown): { status: number; message: string; code: string } {
+  if (err instanceof Anthropic.APIConnectionError) {
+    return {
+      status: 502,
+      code: "unreachable",
+      message: "Couldn't reach the AI service. Please check your connection and try again.",
+    };
+  }
+  if (err instanceof Anthropic.APIError) {
+    const s = err.status ?? 500;
+    if (s === 401 || s === 403) {
+      return {
+        status: 401,
+        code: "bad_key",
+        message: "AI authentication failed — the ANTHROPIC_API_KEY appears to be invalid. Check the key in your Netlify settings.",
+      };
+    }
+    if (s === 429) {
+      return {
+        status: 429,
+        code: "rate_limit",
+        message: "The AI service is busy right now (rate limit). Please wait a moment and try again.",
+      };
+    }
+    if (s >= 500) {
+      return {
+        status: 502,
+        code: "upstream",
+        message: "The AI service is temporarily unavailable. Please try again shortly.",
+      };
+    }
+    return { status: s, code: "api_error", message: `AI request failed (${s}).` };
+  }
+  if (err instanceof SyntaxError) {
+    return {
+      status: 502,
+      code: "bad_response",
+      message: "The AI returned a response that couldn't be read. Please try again.",
+    };
+  }
+  const m = err instanceof Error ? err.message : "Unknown error";
+  return { status: 500, code: "unknown", message: `Parsing failed: ${m}` };
+}
+
+function jsonError(statusCode: number, error: string, code: string) {
+  return {
+    statusCode,
+    headers: { ...corsHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ error, code }),
+  };
+}
 
 function corsHeaders() {
   return {
